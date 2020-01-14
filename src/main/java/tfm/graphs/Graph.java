@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 /**
  * A graphlib Graph without cost and data in arcs
  * */
+@Deprecated
 public abstract class Graph extends edg.graphlib.Graph<String, ArcData> {
 
     private int nextVertexId = 0;

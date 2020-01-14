@@ -2,30 +2,28 @@ package tfm.visitors.pdg;
 
 import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
-import tfm.graphs.CFGGraph;
-import tfm.graphs.PDGGraph;
-import tfm.nodes.GraphNode;
+import tfm.graphs.*;
 
 import java.util.stream.Collectors;
 
-public class ControlDependencyBuilder extends VoidVisitorAdapter<GraphNode> {
+public class ControlDependencyBuilder extends VoidVisitorAdapter<DepVertex> {
 
-    private CFGGraph cfgGraph;
-    private PDGGraph pdgGraph;
+    private ControlFlowGraph cfg;
+    private DependenceGraph.Program pdg;
 
-    public ControlDependencyBuilder(PDGGraph pdgGraph, CFGGraph cfgGraph) {
-        this.pdgGraph = pdgGraph;
-        this.cfgGraph = cfgGraph;
+    public ControlDependencyBuilder(DependenceGraph.Program pdg, ControlFlowGraph cfg) {
+        this.pdg = pdg;
+        this.cfg = cfg;
     }
 
     @Override
-    public void visit(ExpressionStmt expressionStmt, GraphNode parent) {
+    public void visit(ExpressionStmt expressionStmt, DepVertex parent) {
         addNodeAndControlDependency(expressionStmt, parent);
     }
 
     @Override
-    public void visit(IfStmt ifStmt, GraphNode parent) {
-        GraphNode node = addNodeAndControlDependency(ifStmt, parent);
+    public void visit(IfStmt ifStmt, DepVertex parent) {
+        DepVertex node = addNodeAndControlDependency(ifStmt, parent);
 
         ifStmt.getThenStmt().accept(this, node);
 
@@ -33,14 +31,14 @@ public class ControlDependencyBuilder extends VoidVisitorAdapter<GraphNode> {
     }
 
     @Override
-    public void visit(WhileStmt whileStmt, GraphNode parent) {
-        GraphNode node = addNodeAndControlDependency(whileStmt, parent);
+    public void visit(WhileStmt whileStmt, DepVertex parent) {
+        DepVertex node = addNodeAndControlDependency(whileStmt, parent);
 
         whileStmt.getBody().accept(this, node);
     }
 
     @Override
-    public void visit(ForStmt forStmt, GraphNode parent) {
+    public void visit(ForStmt forStmt, DepVertex parent) {
         String initialization = forStmt.getInitialization().stream()
                 .map(com.github.javaparser.ast.Node::toString)
                 .collect(Collectors.joining(","));
@@ -54,42 +52,41 @@ public class ControlDependencyBuilder extends VoidVisitorAdapter<GraphNode> {
                 .orElse("true");
 
 
-        GraphNode forNode = pdgGraph.addNode(
-                String.format("for (%s;%s;%s)", initialization, compare, update),
-                forStmt
-        );
+        DepVertex forNode = new DepVertex(forStmt, String.format("for (%s;%s;%s)", initialization, compare, update));
+        pdg.addVertex(forNode);
 
-        pdgGraph.addControlDependencyArc(parent, forNode);
+        pdg.addEdge(parent, forNode);
 
         forStmt.getBody().accept(this, forNode);
     }
 
     @Override
-    public void visit(ForEachStmt forEachStmt, GraphNode parent) {
-        GraphNode node = addNodeAndControlDependency(forEachStmt, parent);
+    public void visit(ForEachStmt forEachStmt, DepVertex parent) {
+        DepVertex node = addNodeAndControlDependency(forEachStmt, parent);
 
         forEachStmt.getBody().accept(this, node);
     }
 
     @Override
-    public void visit(SwitchStmt switchStmt, GraphNode parent) {
-        GraphNode node = addNodeAndControlDependency(switchStmt, parent);
+    public void visit(SwitchStmt switchStmt, DepVertex parent) {
+        DepVertex node = addNodeAndControlDependency(switchStmt, parent);
 
         switchStmt.getEntries().accept(this, node);
     }
 
     @Override
-    public void visit(SwitchEntryStmt switchEntryStmt, GraphNode parent) {
-        GraphNode node = addNodeAndControlDependency(switchEntryStmt, parent);
+    public void visit(SwitchEntryStmt switchEntryStmt, DepVertex parent) {
+        DepVertex node = addNodeAndControlDependency(switchEntryStmt, parent);
 
         switchEntryStmt.getStatements().accept(this, node);
     }
 
-    private GraphNode addNodeAndControlDependency(Statement statement, GraphNode parent) {
-        GraphNode<?> cfgNode = cfgGraph.findNodeByASTNode(statement).get();
+    private DepVertex addNodeAndControlDependency(Statement statement, DepVertex parent) {
+        DepVertex cfgNode = cfg.findNodeByAst(statement);
 
-        GraphNode node = pdgGraph.addNode(cfgNode.getData(), cfgNode.getAstNode());
-        pdgGraph.addControlDependencyArc(parent, node);
+        DepVertex node = new DepVertex(cfgNode.getAstNode(), cfgNode.getData(), cfgNode.getId());
+        pdg.addVertex(node);
+        pdg.addEdge(parent, node);
 
         return node;
     }

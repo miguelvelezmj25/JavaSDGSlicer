@@ -11,6 +11,7 @@ import tfm.utils.Context;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Deprecated
 public class SDGGraph extends Graph {
 
     private Map<Context, PDGGraph> contextPDGGraphMap;

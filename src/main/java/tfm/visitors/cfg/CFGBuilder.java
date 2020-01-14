@@ -5,24 +5,24 @@ import com.github.javaparser.ast.expr.BooleanLiteralExpr;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
-import tfm.graphs.CFGGraph;
-import tfm.nodes.GraphNode;
+import tfm.graphs.ControlFlowGraph;
+import tfm.graphs.DepVertex;
 import tfm.utils.ASTUtils;
 
 import java.util.*;
 
 public class CFGBuilder extends VoidVisitorAdapter<Void> {
 
-    private CFGGraph graph;
+    private ControlFlowGraph cfg;
 
-    private Queue<GraphNode> lastParentNodes;
-    private List<GraphNode> bodyBreaks;
+    private Queue<DepVertex> lastParentNodes;
+    private List<DepVertex> bodyBreaks;
 
-    public CFGBuilder(CFGGraph graph) {
-        this.graph = graph;
+    public CFGBuilder(ControlFlowGraph cfg) {
+        this.cfg = cfg;
         this.lastParentNodes = Collections.asLifoQueue(
                 new ArrayDeque<>(
-                        Collections.singletonList(graph.getRootNode())
+                        Collections.singletonList(cfg.getEntryVertex())
                 )
         );
 
@@ -33,25 +33,14 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
     public void visit(ExpressionStmt expressionStmt, Void arg) {
         String expression = expressionStmt.toString().replace("\"", "\\\"");
 
-        GraphNode nextNode = addNodeAndArcs(expression, expressionStmt);
+        DepVertex nextNode = addNodeAndArcs(expression, expressionStmt);
 
         lastParentNodes.add(nextNode);
     }
 
-//    @Override
-//    public void visit(VariableDeclarationExpr variableDeclarationExpr, Void arg) {
-//        GraphNode<String> nextNode = addNodeAndArcs(variableDeclarationExpr.toString());
-//
-//        lastParentNodes.add(nextNode);
-//
-//        Logger.log(variableDeclarationExpr);
-//
-//        super.visit(variableDeclarationExpr, arg);
-//    }
-
     @Override
     public void visit(IfStmt ifStmt, Void arg) {
-        GraphNode ifCondition = addNodeAndArcs(
+        DepVertex ifCondition = addNodeAndArcs(
                 String.format("if (%s)", ifStmt.getCondition().toString()),
                 ifStmt
         );
@@ -61,7 +50,7 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
         // Visit "then"
         ifStmt.getThenStmt().accept(this, arg);
 
-        Queue<GraphNode> lastThenNodes = new ArrayDeque<>(lastParentNodes);
+        Queue<DepVertex> lastThenNodes = new ArrayDeque<>(lastParentNodes);
 
         if (ifStmt.hasElseBranch()) {
             lastParentNodes.clear();
@@ -77,7 +66,7 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
 
     @Override
     public void visit(WhileStmt whileStmt, Void arg) {
-        GraphNode whileCondition = addNodeAndArcs(
+        DepVertex whileCondition = addNodeAndArcs(
                 String.format("while (%s)", whileStmt.getCondition().toString()),
                 whileStmt
         );
@@ -87,7 +76,7 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
         whileStmt.getBody().accept(this, arg);
 
         while (!lastParentNodes.isEmpty()) {
-            graph.addControlFlowEdge(lastParentNodes.poll(), whileCondition);
+            cfg.addEdge(lastParentNodes.poll(), whileCondition);
         }
 
         lastParentNodes.add(whileCondition);
@@ -101,7 +90,7 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
 
         body.accept(this, arg);
 
-        GraphNode doWhileNode = addNodeAndArcs(
+        DepVertex doWhileNode = addNodeAndArcs(
                 String.format("while (%s)", doStmt.getCondition()),
                 doStmt
         );
@@ -109,8 +98,10 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
         if (!body.isEmpty()) {
             Statement firstBodyStatement = body.getStatement(0);
 
-            graph.findNodeByASTNode(firstBodyStatement)
-                    .ifPresent(node -> graph.addControlFlowEdge(doWhileNode, node));
+            try {
+                DepVertex node = cfg.findNodeByAst(firstBodyStatement);
+                cfg.addEdge(doWhileNode, node);
+            } catch (NoSuchElementException ignored) {}
         }
 
         lastParentNodes.add(doWhileNode);
@@ -120,19 +111,11 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
 
     @Override
     public void visit(ForStmt forStmt, Void arg) {
-//        String inizialization = forStmt.getInitialization().stream()
-//                .map(GraphNode::toString)
-//                .collect(Collectors.joining(","));
-//
-//        String update = forStmt.getUpdate().stream()
-//                .map(GraphNode::toString)
-//                .collect(Collectors.joining(","));
-
         Expression comparison = forStmt.getCompare().orElse(new BooleanLiteralExpr(true));
-//
+
         forStmt.getInitialization().forEach(expression -> new ExpressionStmt(expression).accept(this, null));
 
-        GraphNode forNode = addNodeAndArcs(
+        DepVertex forNode = addNodeAndArcs(
                 String.format("for (;%s;)", comparison),
                 forStmt
         );
@@ -146,7 +129,7 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
         body.accept(this, arg);
 
         while (!lastParentNodes.isEmpty()) {
-            graph.addControlFlowEdge(lastParentNodes.poll(), forNode);
+            cfg.addEdge(lastParentNodes.poll(), forNode);
         }
 
         lastParentNodes.add(forNode);
@@ -156,7 +139,7 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
 
     @Override
     public void visit(ForEachStmt forEachStmt, Void arg) {
-        GraphNode foreachNode = addNodeAndArcs(
+        DepVertex foreachNode = addNodeAndArcs(
                 String.format("for (%s : %s)", forEachStmt.getVariable(), forEachStmt.getIterable()),
                 forEachStmt
         );
@@ -166,7 +149,7 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
         forEachStmt.getBody().accept(this, arg);
 
         while (!lastParentNodes.isEmpty()) {
-            graph.addControlFlowEdge(lastParentNodes.poll(), foreachNode);
+            cfg.addEdge(lastParentNodes.poll(), foreachNode);
         }
 
         lastParentNodes.add(foreachNode);
@@ -176,23 +159,23 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
 
     @Override
     public void visit(SwitchStmt switchStmt, Void arg) {
-        GraphNode switchNode = addNodeAndArcs(
+        DepVertex switchNode = addNodeAndArcs(
                 String.format("switch (%s)", switchStmt.getSelector()),
                 switchStmt
         );
 
         lastParentNodes.add(switchNode);
 
-        List<GraphNode> allEntryBreaks = new ArrayList<>();
+        List<DepVertex> allEntryBreaks = new ArrayList<>();
 
-        List<GraphNode> lastEntryStatementsWithNoBreak = new ArrayList<>();
+        List<DepVertex> lastEntryStatementsWithNoBreak = new ArrayList<>();
 
         switchStmt.getEntries().forEach(switchEntryStmt -> {
             String label = switchEntryStmt.getLabel()
                     .map(expression -> "case " + expression)
                     .orElse("default");
 
-            GraphNode switchEntryNode = addNodeAndArcs(label, switchEntryStmt);
+            DepVertex switchEntryNode = addNodeAndArcs(label, switchEntryStmt);
 
             lastParentNodes.add(switchEntryNode);
             lastParentNodes.addAll(lastEntryStatementsWithNoBreak);
@@ -226,14 +209,14 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
     public void visit(ContinueStmt continueStmt, Void arg) {
         Statement continuableStatement = ASTUtils.findFirstAncestorStatementFrom(continueStmt, ASTUtils::isLoop);
 
-        GraphNode continuableNode = graph.findNodeByASTNode(continuableStatement).get();
+        DepVertex continuableNode = cfg.findNodeByAst(continuableStatement);
 
-        lastParentNodes.forEach(parentNode -> graph.addControlFlowEdge(parentNode, continuableNode));
+        lastParentNodes.forEach(parentNode -> cfg.addEdge(parentNode, continuableNode));
     }
 
     @Override
     public void visit(ReturnStmt returnStmt, Void arg) {
-        GraphNode node = addNodeAndArcs(
+        DepVertex node = addNodeAndArcs(
                 returnStmt.toString(),
                 returnStmt
         );
@@ -252,16 +235,13 @@ public class CFGBuilder extends VoidVisitorAdapter<Void> {
         lastParentNodes.add(addNodeAndArcs("Stop", new EmptyStmt()));
     }
 
-    private GraphNode addNodeAndArcs(String nodeData, Statement statement) {
-        GraphNode node = graph.addNode(nodeData, statement);
+    private DepVertex addNodeAndArcs(String nodeData, Statement statement) {
+        DepVertex node = new DepVertex(statement, nodeData);
+        cfg.addVertex(node);
 
-        GraphNode parent = lastParentNodes.poll(); // ALWAYS exists a parent
-        graph.addControlFlowEdge(parent, node);
-
-        while (!lastParentNodes.isEmpty()) {
-            parent = lastParentNodes.poll();
-            graph.addControlFlowEdge(parent, node);
-        }
+        assert !lastParentNodes.isEmpty();
+        while (!lastParentNodes.isEmpty())
+            cfg.addEdge(lastParentNodes.poll(), node);
 
         return node;
     }

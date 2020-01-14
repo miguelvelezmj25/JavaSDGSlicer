@@ -21,6 +21,13 @@
     </build>
 
     <dependencies>
+        <dependency>
+            <groupId>fake</groupId>
+            <artifactId>fake</artifactId>
+            <version>none</version>
+            <systemPath>${project.basedir}/lib/graphlib.jar</systemPath>
+            <scope>system</scope>
+        </dependency>
 
         <dependency>
             <groupId>com.github.javaparser</groupId>
