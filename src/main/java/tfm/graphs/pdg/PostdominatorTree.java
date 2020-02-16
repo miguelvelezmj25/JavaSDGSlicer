@@ -1,5 +1,6 @@
 package tfm.graphs.pdg;
 
+import com.github.javaparser.ast.Node;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.traverse.DepthFirstIterator;
 import tfm.arcs.Arc;
@@ -190,8 +191,8 @@ public class PostdominatorTree extends DirectedTree<GraphNode<?>, DefaultEdge> {
         return Integer.compare(sortingMap.get(b1), sortingMap.get(b2));
     }
 
-    private static List<GraphNode<?>> postorder(GraphWithRootNode<?> graph) {
-        Optional<GraphNode<?>> rootNode = graph.getRootNode();
+    private static <RootNode extends Node> List<GraphNode<?>> postorder(GraphWithRootNode<RootNode> graph) {
+        Optional<GraphNode<RootNode>> rootNode = graph.getRootNode();
         if (!rootNode.isPresent())
             throw new IllegalStateException("CFG lacks root node");
         return postorder(graph, rootNode.get());

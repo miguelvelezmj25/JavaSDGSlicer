@@ -67,7 +67,6 @@ public class SDG extends Graph implements Sliceable, Buildable<NodeList<Compilat
     public void addPDG(PDG pdg, MethodDeclaration methodDeclaration) {
         for (Parameter parameter : methodDeclaration.getParameters()) {
             GraphNode<?> sdgNode = NodeFactory.graphNode(
-                    getNextVertexId(),
                     String.format("%s = %s_in", parameter.getNameAsString(), parameter.getNameAsString()),
                     new EmptyStmt()
             );
@@ -78,7 +77,6 @@ public class SDG extends Graph implements Sliceable, Buildable<NodeList<Compilat
         for (GraphNode<?> node : pdg.vertexSet()) {
             if (!this.containsVertex(node)) {
                 GraphNode<?> sdgNode = NodeFactory.computedGraphNode(
-                        getNextVertexId(),
                         node.getInstruction(),
                         node.getAstNode(),
                         node.getDeclaredVariables(),
@@ -93,7 +91,6 @@ public class SDG extends Graph implements Sliceable, Buildable<NodeList<Compilat
 
     public void addMethod(MethodDeclaration methodDeclaration, PDG pdg) {
         GraphNode<MethodDeclaration> methodRootNode = NodeFactory.graphNode(
-                getNextVertexId(),
                 "ENTER " + methodDeclaration.getDeclarationAsString(false, false, true),
                 methodDeclaration
         );
