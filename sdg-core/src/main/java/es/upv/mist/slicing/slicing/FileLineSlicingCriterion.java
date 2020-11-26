@@ -18,15 +18,8 @@ public class FileLineSlicingCriterion extends LineNumberCriterion {
         this.file = file;
     }
 
-    @Override
-    public Optional<GraphNode<?>> findNode(SDG graph) {
-        Optional<CompilationUnit> optCu = findCompilationUnit(graph.getCompilationUnits());
-        if (optCu.isEmpty())
-            return Optional.empty();
-        return optCu.get().findFirst(Statement.class, this::matchesLine).flatMap(graph::findNodeByASTNode);
-    }
-
     /** Locates the compilation unit that corresponds to this criterion's file. */
+    @Override
     protected Optional<CompilationUnit> findCompilationUnit(NodeList<CompilationUnit> cus) {
         for (CompilationUnit cu : cus) {
             Optional<CompilationUnit.Storage> optStorage = cu.getStorage();
