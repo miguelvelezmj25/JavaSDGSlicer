@@ -57,7 +57,7 @@ public class LineNumberCriterion extends SlicingCriterion {
 
     /** Locates the compilation unit that corresponds to this criterion's file. */
     protected Optional<CompilationUnit> findCompilationUnit(NodeList<CompilationUnit> cus) {
-        return cus.stream().findFirst();
+        return cus.getFirst();
     }
 
     /** Check if a node matches the criterion's line. */
