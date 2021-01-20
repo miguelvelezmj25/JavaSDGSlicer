@@ -14,6 +14,7 @@ import com.github.javaparser.resolution.declarations.ResolvedMethodLikeDeclarati
 import es.upv.mist.slicing.graphs.cfg.CFG;
 import es.upv.mist.slicing.nodes.GraphNode;
 import es.upv.mist.slicing.utils.ASTUtils;
+import es.upv.mist.slicing.utils.NodeHashSet;
 import es.upv.mist.slicing.utils.NodeNotFoundException;
 import es.upv.mist.slicing.utils.Utils;
 import org.jgrapht.graph.DefaultEdge;
@@ -22,6 +23,7 @@ import org.jgrapht.nio.dot.DOTExporter;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -185,7 +187,7 @@ public class CallGraph extends DirectedPseudograph<CallGraph.Vertex, CallGraph.E
                 dynamicTypes.stream()
                         .map(t -> classGraph.findMethodByTypeAndSignature(t, decl.getSignature()))
                         .filter(Optional::isPresent).map(Optional::get)
-                        .distinct()
+                        .collect(Collectors.toCollection(NodeHashSet::new))
                         .forEach(methodDecl -> {
                             edgesCreated.getAndIncrement();
                             createNormalEdge(methodDecl, call);
