@@ -186,7 +186,7 @@ public class CallGraph extends DirectedPseudograph<CallGraph.Vertex, CallGraph.E
                 AtomicInteger edgesCreated = new AtomicInteger();
                 dynamicTypes.stream()
                         .map(t -> classGraph.findMethodByTypeAndSignature(t, decl.getSignature()))
-                        .filter(Optional::isPresent).map(Optional::get)
+                        .map(Optional::orElseThrow)
                         .collect(Collectors.toCollection(NodeHashSet::new))
                         .forEach(methodDecl -> {
                             edgesCreated.getAndIncrement();
