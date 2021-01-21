@@ -6,7 +6,6 @@ import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
-import com.github.javaparser.ast.expr.ThisExpr;
 import com.github.javaparser.ast.stmt.ExplicitConstructorInvocationStmt;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import com.github.javaparser.resolution.Resolvable;
@@ -162,23 +161,25 @@ public class CallGraph extends DirectedPseudograph<CallGraph.Vertex, CallGraph.E
                     createNormalEdge(decl, call);
                     return;
                 }
-                Expression scope = call.getScope().orElse(null);
+                Optional<Expression> scope = call.getScope();
                 // Determine the type of the call's scope
                 Set<ClassOrInterfaceDeclaration> dynamicTypes;
-                // a) no scope/this: the current object or any subclass (we could be here but be a subtype)
-                if (scope == null || scope instanceof ThisExpr) {
-                    if (scope == null) {
-                        // Early exit: it is easier to find the methods that override the
-                        // detected call than to account for all cases (implicit inner or outer class)
-                        classGraph.overriddenSetOf(decl)
-                                .forEach(methodDecl -> createNormalEdge(methodDecl, call));
-                        return;
-                    } else if (scope.asThisExpr().getTypeName().isEmpty())
-                        dynamicTypes = classGraph.subclassesOf(classStack.peek());
-                    else
-                        dynamicTypes = classGraph.subclassesOf(scope.asThisExpr().resolve().asClass());
-                } else { // b) object/call/other: find possible dynamic types
-                    dynamicTypes = classGraph.subclassesOf(scope.calculateResolvedType().asReferenceType());
+                if (scope.isEmpty()) {
+                    // a) No scope: any class the method is in, or any outer class if the class is not static.
+                    // Early exit: it is easier to find the methods that override the
+                    // detected call than to account for all cases (implicit inner or outer class)
+                    classGraph.overriddenSetOf(decl)
+                            .forEach(methodDecl -> createNormalEdge(methodDecl, call));
+                    return;
+                } else if (scope.get().isThisExpr() && scope.get().asThisExpr().getTypeName().isEmpty()) {
+                    // b) just 'this', the current class and any subclass
+                    dynamicTypes = classGraph.subclassesOf(classStack.peek());
+                } else if (scope.get().isThisExpr()) {
+                    // c) 'ClassName.this', the given class and any subclass
+                    dynamicTypes = classGraph.subclassesOf(scope.get().asThisExpr().resolve().asClass());
+                } else {
+                    // d) others: compute possible dynamic types of the expression (TODO)
+                    dynamicTypes = classGraph.subclassesOf(scope.get().calculateResolvedType().asReferenceType());
                 }
                 // Locate the corresponding methods for each possible dynamic type, they must be available to all
                 // To locate them, use the method signature and search for it in the class graph
@@ -186,7 +187,6 @@ public class CallGraph extends DirectedPseudograph<CallGraph.Vertex, CallGraph.E
                 AtomicInteger edgesCreated = new AtomicInteger();
                 dynamicTypes.stream()
                         .map(t -> classGraph.findMethodByTypeAndSignature(t, decl.getSignature()))
-                        .map(Optional::orElseThrow)
                         .collect(Collectors.toCollection(NodeHashSet::new))
                         .forEach(methodDecl -> {
                             edgesCreated.getAndIncrement();

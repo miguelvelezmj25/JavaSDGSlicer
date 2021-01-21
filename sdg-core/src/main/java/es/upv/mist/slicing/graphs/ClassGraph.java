@@ -114,7 +114,7 @@ public class ClassGraph extends DirectedPseudograph<ClassGraph.Vertex, ClassGrap
     // TODO: this method ignores default method implementations in interfaces, as can be overridden.
     /** Looks up a method in the graph, going up the class inheritance tree to locate a
      *  matching method. If no match can be found, throws an {@link IllegalArgumentException}. */
-    public Optional<MethodDeclaration> findMethodByTypeAndSignature(ClassOrInterfaceDeclaration type, CallableDeclaration.Signature signature) {
+    public MethodDeclaration findMethodByTypeAndSignature(ClassOrInterfaceDeclaration type, CallableDeclaration.Signature signature) {
         Optional<MethodDeclaration> result = outgoingEdgesOf(findClassVertex(type)).stream()
                 .filter(ClassArc.Member.class::isInstance)
                 .map(this::getEdgeTarget)
@@ -124,10 +124,10 @@ public class ClassGraph extends DirectedPseudograph<ClassGraph.Vertex, ClassGrap
                 .filter(decl -> signature.equals(decl.getSignature()))
                 .findFirst();
         if (result.isPresent())
-            return result;
+            return result.get();
         Optional<ClassOrInterfaceDeclaration> parentType = parentOf(type);
         if (parentType.isEmpty())
-            return Optional.empty();
+            throw new IllegalArgumentException("Cannot find the given signature: " + signature);
         return findMethodByTypeAndSignature(parentType.get(), signature);
     }
 
