@@ -25,15 +25,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/** A dynamic type solver that complements Javaparser's {@code resolve()} method. */
+/** A dynamic type solver that complements JavaParser's {@code resolve()} method. */
 public class DynamicTypeResolver {
-    protected final CFG cfg;
     protected final Map<CallableDeclaration<?>, CFG> cfgMap;
     protected final ClassGraph classGraph;
     protected final CallGraph callGraph;
 
-    public DynamicTypeResolver(CFG cfg, Map<CallableDeclaration<?>, CFG> cfgMap, ClassGraph classGraph, CallGraph callGraph) {
-        this.cfg = cfg;
+    public DynamicTypeResolver(Map<CallableDeclaration<?>, CFG> cfgMap, ClassGraph classGraph, CallGraph callGraph) {
         this.cfgMap = cfgMap;
         this.classGraph = classGraph;
         this.callGraph = callGraph;
@@ -52,7 +50,8 @@ public class DynamicTypeResolver {
             return resolveMethodCallExpr(expression.asMethodCallExpr());
         if (expression.isNameExpr() || expression.isFieldAccessExpr()) // May be field, local variable or parameter
             return resolveVariable(expression, container);
-        if (expression.isArrayAccessExpr())
+        if (expression.isArrayAccessExpr() ||
+                expression.isThisExpr())
             return anyTypeOf(expression);
         if (expression.isCastExpr())
             return resolveCast(expression.asCastExpr(), container);
@@ -89,6 +88,7 @@ public class DynamicTypeResolver {
      * Otherwise, the last expression(s) assigned to it is found and recursively resolved.
      */
     protected Stream<ResolvedType> resolveVariableAction(VariableAction va) {
+        CFG cfg = cfgMap.get(findCallableDeclarationFromGraphNode(va.getGraphNode()));
         return cfg.findLastDefinitionsFrom(va).stream()
                 .flatMap(def -> {
                     if (def.asDefinition().getExpression() == null) {
