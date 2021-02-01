@@ -93,11 +93,24 @@ public class VariableVisitor extends GraphNodeContentVisitor<VariableVisitor.Act
 
     @Override
     public void visit(FieldAccessExpr n, Action action) {
-        // TODO: don't accept the whole expression in all cases, only when the scope
-        // is a NameExpr (or FieldAccessExpr nested any number of levels, ending in
-        // a NameExpr). Calls and object creation should be treated differently?
-        acceptAction(n, action);
+        // Traverse the scope of this variable access
         n.getScope().accept(this, action);
+        // Register the field access as action
+        Expression scope = n.getScope();
+        boolean traverse = true;
+        while (traverse) {
+            if (scope.isFieldAccessExpr())
+                scope = scope.asFieldAccessExpr().getScope();
+            else if (scope.isEnclosedExpr())
+                scope = scope.asEnclosedExpr().getInner();
+            else if (scope.isCastExpr())
+                scope = scope.asCastExpr().getExpression();
+            else
+                traverse = false;
+        }
+        // Only accept the field access as action if it is a sequence of names (a.b.c.d, this.a.b.c)
+        if (scope.isNameExpr() || scope.isThisExpr())
+            acceptAction(n, action);
     }
 
     protected void acceptAction(Expression n, Action action) {
@@ -203,6 +216,7 @@ public class VariableVisitor extends GraphNodeContentVisitor<VariableVisitor.Act
     @Override
     public void visit(CatchClause n, Action arg) {
         n.getParameter().accept(this, arg.or(Action.DECLARATION));
+        n.getBody().accept(this, arg);
     }
 
     @Override

@@ -74,11 +74,13 @@ public class DynamicTypeResolver {
     }
 
     /** Searches for the corresponding VariableAction object, then calls {@link #resolveVariableAction(VariableAction)}. */
-    // TODO: make VariableVisitor register FieldAccessExpr as a possible action source.
     protected Stream<ResolvedType> resolveVariable(Expression expression, GraphNode<?> graphNode) {
-        return resolveVariableAction(graphNode.getVariableActions().stream()
+        Optional<VariableAction> va = graphNode.getVariableActions().stream()
                 .filter(action -> ASTUtils.equalsWithRange(action.getVariableExpression(), expression))
-                .findFirst().orElseThrow());
+                .findFirst();
+        if (va.isEmpty())
+            return anyTypeOf(expression);
+        return resolveVariableAction(va.get());
     }
 
     /**
