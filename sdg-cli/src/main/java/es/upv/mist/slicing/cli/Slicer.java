@@ -19,6 +19,7 @@ import org.apache.commons.cli.*;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -96,12 +97,17 @@ public class Slicer {
                 .builder("h").longOpt("help")
                 .desc("Shows this text")
                 .build());
+        OPTIONS.addOption(Option
+                .builder("g").longOpt("graph")
+                .desc("Graph the dependence graph")
+                .build());
     }
 
     private final Set<File> dirIncludeSet = new HashSet<>();
     private File outputDir = DEFAULT_OUTPUT_DIR;
     private File scFile;
     private int scLine;
+    private boolean graphSDG = false;
     private final List<String> scVars = new ArrayList<>();
     private final List<Integer> scVarOccurrences = new ArrayList<>();
     private final CommandLine cliOpts;
@@ -147,6 +153,10 @@ public class Slicer {
                     throw new ParseException("One of the include directories is not a directory or isn't accesible: " + str);
                 dirIncludeSet.add(dir);
             }
+        }
+
+        if(cliOpts.hasOption('g')) {
+            this.graphSDG = true;
         }
     }
 
@@ -209,7 +219,7 @@ public class Slicer {
         return Collections.unmodifiableList(scVarOccurrences);
     }
 
-    public void slice() throws ParseException {
+    public void slice() throws ParseException, IOException {
         // Configure JavaParser
         StaticTypeSolver.addTypeSolverJRE();
         for (File directory : dirIncludeSet)
@@ -241,6 +251,11 @@ public class Slicer {
                 throw new IllegalArgumentException("Unknown type of graph. Available graphs are SDG, ASDG, PSDG, ESSDG");
         }
         sdg.build(new NodeList<>(units));
+
+        if(this.graphSDG) {
+            GraphLog<SDG> graphLog = new SDGLog(sdg);
+            graphLog.generateImages();
+        }
 
         // Slice the SDG
         SlicingCriterion sc = new FileLineSlicingCriterion(scFile, scLine);
@@ -294,7 +309,7 @@ public class Slicer {
         System.exit(0);
     }
 
-    public static void main(String... args) {
+    public static void main(String... args) throws IOException {
         try {
             new Slicer(args).slice();
         } catch (ParseException e) {
