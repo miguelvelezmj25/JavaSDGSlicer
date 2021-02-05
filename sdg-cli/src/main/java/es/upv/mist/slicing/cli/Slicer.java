@@ -5,6 +5,7 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.comments.BlockComment;
 import com.github.javaparser.ast.nodeTypes.NodeWithName;
+import com.github.javaparser.symbolsolver.resolution.typesolvers.JarTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.JavaParserTypeSolver;
 import es.upv.mist.slicing.graphs.augmented.ASDG;
 import es.upv.mist.slicing.graphs.augmented.PSDG;
@@ -101,9 +102,16 @@ public class Slicer {
                 .builder("g").longOpt("graph")
                 .desc("Graph the dependence graph")
                 .build());
+        OPTIONS.addOption(Option
+                .builder("j").longOpt("jars")
+                .hasArgs().argName("jar[,jar,...]").valueSeparator(',')
+                .desc("Includes the application jar files. Methods that are not included here will not be analyzed, " +
+                        " resulting in less precise slicing.")
+                .build());
     }
 
     private final Set<File> dirIncludeSet = new HashSet<>();
+    private final Set<File> appJars = new HashSet<>();
     private File outputDir = DEFAULT_OUTPUT_DIR;
     private File scFile;
     private int scLine;
@@ -157,6 +165,16 @@ public class Slicer {
 
         if(cliOpts.hasOption('g')) {
             this.graphSDG = true;
+        }
+
+        if(cliOpts.hasOption('j')) {
+            for(String str: cliOpts.getOptionValues('j')) {
+                File jar = new File(str);
+                if(!jar.getName().endsWith(".jar")) {
+                    throw new ParseException("One of the include jar is not a jar or isn't accesible: " + str);
+                }
+                appJars.add(jar);
+            }
         }
     }
 
@@ -224,6 +242,9 @@ public class Slicer {
         StaticTypeSolver.addTypeSolverJRE();
         for (File directory : dirIncludeSet)
             StaticTypeSolver.addTypeSolver(new JavaParserTypeSolver(directory));
+        for (File jar : appJars) {
+            StaticTypeSolver.addTypeSolver(new JarTypeSolver(jar));
+        }
         StaticJavaParser.getConfiguration().setAttributeComments(false);
 
         // Build the SDG
